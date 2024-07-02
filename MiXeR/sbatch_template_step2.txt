@@ -1,0 +1,86 @@
+#!/bin/bash
+
+#SBATCH --partition=hpxg
+#SBATCH --nodes=1
+#SBATCH --time=10:00:00
+#SBATCH --cpus-per-task=16
+#SBATCH --job-name=cing_l
+#SBATCH --array=1-20
+
+# Config need to modify
+# This is fit2 test2 and combine. 2 phenos!
+export pheno1=<PHENO1_TO_SWAP>
+export pheno2=<PHENO2_TO_SWAP>
+# .csv.gz should be put under format workdir!
+export mixerdir=<MIXERDIR_TO_SWAP>
+export workdir=<WORKDIR_TO_SWAP>
+export fit1_workdir=<FIT1DIR_TO_SWAP>
+export refdir=<MIXER_REF_DIR_TO_SWAP>
+export formatdir=<FORMAT_DIR_TO_SWAP>
+export activate=<ACTIVATE_DIR_TO_SWAP>
+export env=<ENV_DIR_TO_SWAP>
+
+echo \
+"
+=================================
+||  fit2 & test2 & combine !!  ||
+=================================
+"
+
+echo "The PHENO is **${pheno1} vs ${pheno2}**!"
+echo "It begins at $(date)"
+
+source ${activate} ${env}
+# The fit2 time is about 4 hours 15 min
+mkdir -p ${workdir}/${pheno1}_${pheno2}_fit2
+python3 ${mixerdir}/precimed/mixer.py fit2 \
+      --trait1-file ${formatdir}/${pheno1}_noMHC.csv.gz \
+      --trait2-file ${formatdir}/${pheno2}_noMHC.csv.gz \
+      --trait1-params-file ${fit1_workdir}/${pheno1}_fit1/${pheno1}.fit1.rep${SLURM_ARRAY_TASK_ID}.json \
+      --trait2-params-file ${fit1_workdir}/${pheno2}_fit1/${pheno2}.fit1.rep${SLURM_ARRAY_TASK_ID}.json \
+      --out ${workdir}/${pheno1}_${pheno2}_fit2/${pheno1}_${pheno2}.fit2.rep${SLURM_ARRAY_TASK_ID} \
+      --extract ${refdir}/1000G_EUR_Phase3_plink/1000G.EUR.QC.prune_maf0p05_rand2M_r2p8.rep${SLURM_ARRAY_TASK_ID}.snps \
+      --bim-file ${refdir}/1000G_EUR_Phase3_plink/1000G.EUR.QC.@.bim \
+      --ld-file ${refdir}/1000G_EUR_Phase3_plink/1000G.EUR.QC.@.run4.ld \
+      --lib  ${mixerdir}/src/build/lib/libbgmg.so
+
+echo "FIT2 ends at $(date)"
+# The test2 time is about 3.5 hours
+mkdir -p ${workdir}/${pheno1}_${pheno2}_test2
+python3 ${mixerdir}/precimed/mixer.py test2 \
+      --trait1-file ${formatdir}/${pheno1}_noMHC.csv.gz \
+      --trait2-file ${formatdir}/${pheno2}_noMHC.csv.gz \
+      --load-params-file ${workdir}/${pheno1}_${pheno2}_fit2/${pheno1}_${pheno2}.fit2.rep${SLURM_ARRAY_TASK_ID}.json \
+      --out ${workdir}/${pheno1}_${pheno2}_test2/${pheno1}_${pheno2}.test2.rep${SLURM_ARRAY_TASK_ID} \
+      --bim-file ${refdir}/1000G_EUR_Phase3_plink/1000G.EUR.QC.@.bim \
+      --ld-file ${refdir}/1000G_EUR_Phase3_plink/1000G.EUR.QC.@.run4.ld \
+      --lib  ${mixerdir}/src/build/lib/libbgmg.so
+
+echo "TEST2 ends at $(date)"
+
+if [ "${SLURM_ARRAY_TASK_ID}" -eq 20 ]; then
+  fit2_count=$(find "${workdir}/${pheno1}_${pheno2}_fit2" -maxdepth 1 -type f | wc -l)
+  test2_count=$(find "${workdir}/${pheno1}_${pheno2}_test2" -maxdepth 1 -type f | wc -l)
+  if [ "${fit2_count}" -eq 40 ] && [ "${test2_count}" -eq 40 ]; then
+    mkdir -p ${workdir}/${pheno1}_${pheno2}_result
+    python3 ${mixerdir}/precimed/mixer_figures.py combine \
+        --json ${workdir}/${pheno1}_${pheno2}_fit2/${pheno1}_${pheno2}.fit2.rep@.json \
+        --out ${workdir}/${pheno1}_${pheno2}_result/${pheno1}_${pheno2}.fit2
+
+    python3 ${mixerdir}/precimed/mixer_figures.py combine \
+        --json ${workdir}/${pheno1}_${pheno2}_test2/${pheno1}_${pheno2}.test2.rep@.json \
+        --out ${workdir}/${pheno1}_${pheno2}_result/${pheno1}_${pheno2}.test2
+  
+    python3 ${mixerdir}/precimed/mixer_figures.py two \
+        --json-fit ${workdir}/${pheno1}_${pheno2}_result/${pheno1}_${pheno2}.fit2.json \
+        --json-test ${workdir}/${pheno1}_${pheno2}_result/${pheno1}_${pheno2}.test2.json \
+        --out ${workdir}/${pheno1}_${pheno2}_result/${pheno1}_${pheno2}_over \
+        --statistic mean std --trait1 ${pheno1} --trait2 ${pheno2}
+  else
+    echo "ERROR***THERE ARE SOMETHING WRONG WITH FIT2 AND TEST2***ERROR"
+  fi
+else
+  echo "The fit2 test2 rep${SLURM_ARRAY_TASK_ID} is DONE! Continue to next!"
+fi
+
+echo "It ends at $(date)"

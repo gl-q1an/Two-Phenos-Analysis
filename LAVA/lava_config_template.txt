@@ -1,0 +1,4 @@
+phenotype	cases	controls	filename
+FSA	NA	NA	/home/user/data/ldsc_format/fsa.sumstats.gz
+FTH	NA	NA	/home/user/data/ldsc_format/fth.sumstats.gz
+PTSD	NA	NA	/home/user/data/ldsc_format/ptsd.sumstats.gz

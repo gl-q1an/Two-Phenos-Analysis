@@ -1,0 +1,56 @@
+#!/bin/bash
+
+#SBATCH --partition=hpxg
+#SBATCH --nodes=1
+#SBATCH --time=6:00:00
+#SBATCH --cpus-per-task=16
+#SBATCH --job-name=mixer
+#SBATCH --array=1-20
+
+# The fit1 time is about 3 hours
+# Config need to modify
+# This is fit1. Just 1 pheno!
+export pheno=<PHENO_TO_SWAP>
+# .csv.gz should be put under workdir!
+export mixerdir=<MIXERDIR_TO_SWAP>
+export workdir=<WORKDIR_TO_SWAP>
+export refdir=<MIXER_REF_DIR_TO_SWAP>
+export formatdir=<FORMAT_DIR_TO_SWAP>
+export activate=<ACTIVATE_DIR_TO_SWAP>
+export env=<ENV_DIR_TO_SWAP>
+
+echo \
+"
+=================================
+||     One PHENO fit1 !!       ||
+=================================
+"
+
+echo "The PHENO is **${pheno}**!"
+echo "It begins at $(date)"
+
+source ${activate} ${env}
+mkdir -p ${workdir}/${pheno}_fit1
+
+python3 ${mixerdir}/precimed/mixer.py fit1 \
+      --trait1-file ${formatdir}/${pheno}_noMHC.csv.gz \
+      --out ${workdir}/${pheno}_fit1/${pheno}.fit1.rep${SLURM_ARRAY_TASK_ID} \
+      --extract ${refdir}/1000G_EUR_Phase3_plink/1000G.EUR.QC.prune_maf0p05_rand2M_r2p8.rep${SLURM_ARRAY_TASK_ID}.snps \
+      --bim-file ${refdir}/1000G_EUR_Phase3_plink/1000G.EUR.QC.@.bim \
+      --ld-file ${refdir}/1000G_EUR_Phase3_plink/1000G.EUR.QC.@.run4.ld \
+      --lib  ${mixerdir}/src/build/lib/libbgmg.so
+
+if [ "${SLURM_ARRAY_TASK_ID}" -eq 20 ]; then
+  fit1_count=$(find "${workdir}/${pheno}_fit1" -maxdepth 1 -type f | wc -l)
+  if [ "${fit2_count}" -eq 40 ]; then
+    echo "Please check the filelist of **${pheno}**!" > ${workdir}/md5_${pheno}_fit1.txt
+    tar -czvf ${workdir}/${pheno}_fit1.tar.gz ${workdir}/${pheno}_fit1 >> ${workdir}/md5_${pheno}_fit1.txt
+    md5sum  ${workdir}/${pheno}_fit1.tar.gz >> ${workdir}/md5_${pheno}_fit1.txt
+  else
+    echo "ERROR***THERE ARE SOMETHING WRONG WITH FIT1***ERROR"
+  fi
+else
+  echo "The rep${SLURM_ARRAY_TASK_ID} is DONE! Continue to next!"
+fi
+
+echo "It ends at $(date)"

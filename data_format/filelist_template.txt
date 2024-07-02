@@ -1,0 +1,4 @@
+# Pheno	Summary
+PTSD	/home/user/data/gwas_summary/eur_PTSD_Continuous_m0_pcs_alldata_may8_2020.fuma.gz
+FSA	/home/user/data/gwas_summary/ENIGMA3_mixed_se_wo_Mean_Full_SurfArea_20190429.txt.gz
+FTH	/home/user/data/gwas_summary/ENIGMA3_mixed_se_wo_Mean_Full_Thickness_20190429.txt.gz
